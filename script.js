@@ -13,12 +13,12 @@
     // Until you paste in real values, the app just runs in local-only mode
     // (auto-saves to this device, no cloud sync, no sign-in button shown).
     const firebaseConfig = {
-      apiKey: "YOUR_API_KEY",
-      authDomain: "YOUR_PROJECT.firebaseapp.com",
-      projectId: "YOUR_PROJECT_ID",
-      storageBucket: "YOUR_PROJECT.appspot.com",
-      messagingSenderId: "YOUR_SENDER_ID",
-      appId: "YOUR_APP_ID"
+      apiKey: "AIzaSyD5R8s1isM1awXKbO0KY5azKt2A9yWLZ7Y",
+      authDomain: "moneyflow-c2fae.firebaseapp.com",
+      projectId: "moneyflow-c2fae",
+      storageBucket: "moneyflow-c2fae.firebasestorage.app",
+      messagingSenderId: "1045573253870",
+      appId: "1:1045573253870:web:7fad0d864799e2b7b751ff"
     };
 
     let firebaseEnabled = false;
