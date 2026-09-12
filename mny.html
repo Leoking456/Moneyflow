@@ -1,0 +1,93 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MoneyFlow</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="app">
+    <div class="top">
+      <div>
+        <div class="brand">£ MoneyFlow</div>
+        <div class="muted">Your personal money market</div>
+      </div>
+      <div class="top-actions">
+        <div id="authArea"></div>
+        <button class="history-btn" id="openHistory">☰ Transaction history</button>
+        <button class="reset" id="reset">Reset</button>
+      </div>
+    </div>
+
+    <div class="cards">
+      <div class="card">
+        <div class="label">Current balance</div>
+        <div id="balance" class="balance">£0.00</div>
+        <div id="status" class="muted">No transactions yet</div>
+      </div>
+    </div>
+
+    <div class="top-row">
+      <div class="card chart">
+        <div class="charthead">
+          <div>
+            <b>Balance history</b>
+            <div id="range" class="muted">Waiting for transactions</div>
+          </div>
+          <div class="green">● LIVE</div>
+        </div>
+        <div class="canvas"><canvas id="graph"></canvas></div>
+      </div>
+
+      <div class="card">
+        <h2>Add transaction</h2>
+
+        <div class="types">
+          <button class="add active" data-type="add">＋ Add money</button>
+          <button class="spend" data-type="spend">− Spend money</button>
+        </div>
+
+        <div class="field">
+          <label>Amount (£)</label>
+          <input id="amount" type="number" min="0.01" step="0.01" placeholder="25.00">
+        </div>
+
+        <div class="field">
+          <label>Description</label>
+          <input id="desc" maxlength="60" placeholder="e.g. Birthday money">
+        </div>
+
+        <div class="field">
+          <label>Date (optional)</label>
+          <input id="txdate" type="date">
+        </div>
+
+        <div id="error" class="error"></div>
+
+        <button id="submit" class="submit">＋ Add money</button>
+        <p class="muted">Leave the date blank to show a dot instead.</p>
+      </div>
+    </div>
+
+  </main>
+
+  <div class="modal-backdrop" id="modalBackdrop">
+    <div class="modal">
+      <div class="modal-head">
+        <h2>Transaction history</h2>
+        <button class="modal-close" id="closeHistory">✕</button>
+      </div>
+      <div id="history" class="loading">Loading…</div>
+    </div>
+  </div>
+
+  <!-- Firebase (Google sign-in + Firestore sync). See setup steps in script.js -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+  <script src="script.js"></script>
+
+</body>
+</html>
