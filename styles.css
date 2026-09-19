@@ -15,7 +15,6 @@ body {
   padding: 25px;
 }
 
-/* ---------- header ---------- */
 .top {
   display: flex;
   justify-content: space-between;
@@ -39,7 +38,6 @@ body {
   align-items: center;
 }
 
-/* ---------- auth / google sign-in ---------- */
 #authArea {
   display: flex;
   align-items: center;
@@ -73,29 +71,6 @@ body {
 .google-btn:focus-visible {
   outline: 2px solid #4285F4;
   outline-offset: 1px;
-}
-
-/* real Google mark: white circle behind the four-colour "G" */
-.google-btn::before {
-  content: "";
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: #fff;
-  flex-shrink: 0;
-}
-
-.google-btn::after {
-  content: "G";
-  position: absolute;
-  font-weight: 800;
-  font-size: 12px;
-  background: linear-gradient(135deg, #4285F4 25%, #34A853 25% 50%, #FBBC05 50% 75%, #EA4335 75%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  margin-left: -27px;
-  /* sits on top of the circle */
 }
 
 .user-chip {
@@ -170,7 +145,6 @@ body {
   box-shadow: 0 0 0 3px rgba(32, 216, 121, .18);
 }
 
-/* ---------- cards ---------- */
 .card {
   background: #0d141e;
   border: 1px solid #1b2938;
@@ -205,7 +179,6 @@ body {
   color: #ff4d67;
 }
 
-/* ---------- chart ---------- */
 .chart {
   margin-top: 12px;
   padding: 0;
@@ -228,7 +201,6 @@ body {
   height: 100%;
 }
 
-/* ---------- chart + form side by side ---------- */
 .top-row {
   display: grid;
   grid-template-columns: 1fr 330px;
@@ -324,7 +296,6 @@ input {
   display: block;
 }
 
-/* ---------- history trigger button ---------- */
 .history-btn {
   background: #0a1018;
   color: #eef4fb;
@@ -334,7 +305,6 @@ input {
   padding: 10px 16px;
 }
 
-/* ---------- history modal ---------- */
 .modal-backdrop {
   position: fixed;
   inset: 0;
@@ -394,7 +364,6 @@ input {
   padding: 4px 6px;
 }
 
-/* ---------- transaction history ---------- */
 .history {
   max-height: 60vh;
   overflow: auto;
@@ -467,7 +436,6 @@ input {
   }
 }
 
-/* ---------- mobile refinements ---------- */
 @media (max-width: 600px) {
   .app {
     padding: 14px;
@@ -552,7 +520,6 @@ input {
     font-size: 13px;
   }
 
-  /* auth area: shrink instead of hiding */
   .google-btn .btn-text {
     display: none;
   }
@@ -569,5 +536,104 @@ input {
   .user-chip {
     padding: 4px 6px 4px 4px;
     gap: 4px;
+  }
+}
+
+/* Chart view switcher — sits between the chart heading and the canvas */
+
+.chart-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 12px 18px 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.chart-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.chart-tab {
+  white-space: nowrap;
+  padding: 8px 13px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #8190a3;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 999px;
+}
+
+.chart-tab:hover {
+  color: #eef4fb;
+}
+
+.chart-tab.active {
+  color: #eef4fb;
+  background: #15212e;
+  border-color: #26374a;
+}
+
+.chart-tab:focus-visible {
+  outline: 2px solid #20d879;
+  outline-offset: 1px;
+}
+
+@media (max-width: 600px) {
+  .chart-tabs {
+    padding: 10px 14px 0;
+    gap: 5px;
+  }
+
+  .chart-tab {
+    padding: 9px 11px;
+    font-size: 12px;
+  }
+}
+
+.chart-tab.new {
+  color: #647386;
+  border-style: dashed;
+  border-color: #26374a;
+}
+
+.chart-tab.new:hover {
+  color: #20d879;
+  border-color: #20d879;
+}
+
+/* Rename / Remove, sitting in the chart heading */
+.chart-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.link-btn {
+  background: transparent;
+  border: 0;
+  padding: 2px;
+  color: #8190a3;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.link-btn:hover {
+  color: #eef4fb;
+}
+
+.link-btn:disabled {
+  opacity: .35;
+  cursor: not-allowed;
+}
+
+.link-btn:focus-visible {
+  outline: 2px solid #20d879;
+  outline-offset: 2px;
+}
+
+@media (max-width: 600px) {
+  .chart-actions {
+    gap: 9px;
   }
 }
