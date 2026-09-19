@@ -1,11 +1,13 @@
 <!doctype html>
 <html>
+
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>MoneyFlow</title>
   <link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
   <main class="app">
     <div class="top">
@@ -27,46 +29,6 @@
         <div id="status" class="muted">No transactions yet</div>
         <div id="gbp2lkr">
           <div id="lkrBalance" class="muted">≈ Rs 0.00</div>
-          <script>
-            let gbpToLkrRate = null;
-            async function updateExchangeRate() {
-              try {
-                const response = await fetch(
-                  "https://api.frankfurter.dev/v2/rate/gbp/lkr"
-                );
-                const data = await response.json();
-                gbpToLkrRate = data.rate;
-                updateLKR();
-              } catch (error) {
-                document.getElementById("lkrBalance").textContent =
-                  "LKR rate unavailable";
-              }
-            }
-            function updateLKR() {
-              if (!gbpToLkrRate) return;
-              const gbp = parseFloat(
-                document.getElementById("balance").textContent
-                  .replace("£", "")
-                  .replace(/,/g, "")
-              ) || 0;
-              const lkr = gbp * gbpToLkrRate;
-              document.getElementById("lkrBalance").textContent =
-                "≈ Rs " + lkr.toLocaleString("en-LK", {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2
-                });
-            }
-            updateExchangeRate();
-            setInterval(updateExchangeRate, 30 * 60 * 1000);
-            new MutationObserver(updateLKR).observe(
-              document.getElementById("balance"),
-              {
-                childList: true,
-                characterData: true,
-                subtree: true
-              }
-            );
-          </script>
         </div>
       </div>
     </div>
@@ -75,11 +37,19 @@
       <div class="card chart">
         <div class="charthead">
           <div>
-            <b>Balance history</b>
+            <b id="chartTitle">Balance over time</b>
             <div id="range" class="muted">Waiting for transactions</div>
           </div>
-          <div class="green">● LIVE</div>
+          <div class="chart-actions">
+            <button class="link-btn" id="renameChart">Rename</button>
+            <button class="link-btn" id="deleteChart">Remove</button>
+            <div class="green">● LIVE</div>
+          </div>
         </div>
+
+        <!-- Tabs are built by script.js from the user's saved charts -->
+        <div class="chart-tabs" id="chartTabs"></div>
+
         <div class="canvas"><canvas id="graph"></canvas></div>
       </div>
 
@@ -125,6 +95,25 @@
     </div>
   </div>
 
+  <div class="modal-backdrop" id="chartModalBackdrop">
+    <div class="modal">
+      <div class="modal-head">
+        <h2 id="chartModalTitle">New chart</h2>
+        <button class="modal-close" id="closeChartModal">✕</button>
+      </div>
+
+      <div class="field">
+        <label>Section name</label>
+        <input id="chartName" maxlength="40" placeholder="e.g. This year">
+      </div>
+
+      <div id="chartError" class="error"></div>
+
+      <button id="saveChart" class="submit">Save chart</button>
+      <p class="muted">Each section shows your balance history — this just names it.</p>
+    </div>
+  </div>
+
   <!-- Firebase (Google sign-in + Firestore sync). See setup steps in script.js -->
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
@@ -133,4 +122,5 @@
   <script src="script.js"></script>
 
 </body>
+
 </html>
