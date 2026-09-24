@@ -22,9 +22,11 @@
       </div>
     </div>
 
+    <div class="tabbar" id="tabbar"></div>
+
     <div class="cards">
       <div class="card">
-        <div class="label">Current balance</div>
+        <div id="balanceLabel" class="label">Current balance</div>
         <div id="balance" class="balance">£0.00</div>
         <div id="status" class="muted">No transactions yet</div>
         <div id="gbp2lkr">
@@ -37,18 +39,11 @@
       <div class="card chart">
         <div class="charthead">
           <div>
-            <b id="chartTitle">Balance over time</b>
+            <b>Balance over time</b>
             <div id="range" class="muted">Waiting for transactions</div>
           </div>
-          <div class="chart-actions">
-            <button class="link-btn" id="renameChart">Rename</button>
-            <button class="link-btn" id="deleteChart">Remove</button>
-            <div class="green">● LIVE</div>
-          </div>
+          <div class="green">● LIVE</div>
         </div>
-
-        <!-- Tabs are built by script.js from the user's saved charts -->
-        <div class="chart-tabs" id="chartTabs"></div>
 
         <div class="canvas"><canvas id="graph"></canvas></div>
       </div>
@@ -92,25 +87,6 @@
         <button class="modal-close" id="closeHistory">✕</button>
       </div>
       <div id="history" class="loading">Loading…</div>
-    </div>
-  </div>
-
-  <div class="modal-backdrop" id="chartModalBackdrop">
-    <div class="modal">
-      <div class="modal-head">
-        <h2 id="chartModalTitle">New chart</h2>
-        <button class="modal-close" id="closeChartModal">✕</button>
-      </div>
-
-      <div class="field">
-        <label>Section name</label>
-        <input id="chartName" maxlength="40" placeholder="e.g. This year">
-      </div>
-
-      <div id="chartError" class="error"></div>
-
-      <button id="saveChart" class="submit">Save chart</button>
-      <p class="muted">Each section shows your balance history — this just names it.</p>
     </div>
   </div>
 
