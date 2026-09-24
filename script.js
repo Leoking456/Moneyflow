@@ -26,7 +26,6 @@ try {
 // gbp to lkr conversion
 // ---------------------------------------------------------------
 
-
 let gbpToLkr = null;
 const $balance = document.getElementById("balance");
 const $lkr = document.getElementById("lkrBalance");
@@ -54,29 +53,60 @@ new MutationObserver(updateLKR).observe($balance, { childList: true, characterDa
 // ---------------------------------------------------------------
 // State + storage
 // ---------------------------------------------------------------
-const STORAGE_KEY = 'moneyflow_transactions';
+const STORAGE_KEY = 'moneyflow_tabs_v2';
+const OLD_STORAGE_KEY = 'moneyflow_transactions'; // pre-tabs format, used for one-time migration
 
-let transactions = [];   // { id, createdAt, type: 'add'|'spend', amount, desc, date|null }
+// tabs: [{ id, name, transactions: [{ id, createdAt, type:'add'|'spend', amount, desc, date|null }] }]
+let tabs = [];
+let activeTabId = null;
 let selectedType = 'add';
 
 const $ = (id) => document.getElementById(id);
+
+const newId = () => Date.now() + Math.random();
 
 const formatMoney = (n) =>
   new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(n);
 
 const escapeHtml = (s) =>
   s.replace(/[&<>"']/g, (c) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&#39;', "'": '&#39;'
   }[c]));
 
-async function loadTransactions() {
+function currentTab() {
+  return tabs.find((t) => t.id === activeTabId) || tabs[0];
+}
+
+async function loadData() {
   try {
     const result = await window.storage.get(STORAGE_KEY, false);
-    transactions = result && result.value ? JSON.parse(result.value) : [];
+    if (result && result.value) {
+      const parsed = JSON.parse(result.value);
+      if (Array.isArray(parsed.tabs) && parsed.tabs.length) {
+        tabs = parsed.tabs;
+        activeTabId = parsed.activeTabId || tabs[0].id;
+      }
+    }
   } catch (err) {
-    transactions = [];
+    tabs = [];
   }
+
+  if (!tabs.length) {
+    // One-time migration from the old single-list storage format.
+    let migrated = [];
+    try {
+      const old = await window.storage.get(OLD_STORAGE_KEY, false);
+      if (old && old.value) migrated = JSON.parse(old.value) || [];
+    } catch (err) {
+      migrated = [];
+    }
+    tabs = [{ id: newId(), name: 'General', transactions: migrated }];
+    activeTabId = tabs[0].id;
+    await saveLocalOnly();
+  }
+
   renderAuthArea();
+  renderTabs();
   render();
 }
 
@@ -84,7 +114,7 @@ async function loadTransactions() {
 // signed in or not — this is the "automatic save to device" part.
 async function saveLocalOnly() {
   try {
-    await window.storage.set(STORAGE_KEY, JSON.stringify(transactions), false);
+    await window.storage.set(STORAGE_KEY, JSON.stringify({ tabs, activeTabId }), false);
   } catch (err) {
     console.error('Storage error:', err);
   }
@@ -92,12 +122,13 @@ async function saveLocalOnly() {
 
 // Saves locally, and — if signed in — also pushes to the user's
 // Google account (Firestore), so other signed-in devices pick it up.
-async function saveTransactions() {
+async function saveData() {
   await saveLocalOnly();
   if (firebaseEnabled && currentUser) {
     try {
       await db.collection('moneyflow').doc(currentUser.uid).set({
-        transactions,
+        tabs,
+        activeTabId,
         updatedAt: Date.now()
       });
     } catch (err) {
@@ -154,31 +185,122 @@ if (firebaseEnabled) {
     if (user) {
       const ref = db.collection('moneyflow').doc(user.uid);
       const snap = await ref.get();
+      const data = snap.exists ? snap.data() : null;
 
-      if (snap.exists && Array.isArray(snap.data().transactions)) {
-        // Cloud already has data for this account — treat it as
-        // the source of truth and mirror it into local storage.
-        transactions = snap.data().transactions;
+      if (data && Array.isArray(data.tabs) && data.tabs.length) {
+        // Cloud already has tab-based data for this account — treat
+        // it as the source of truth and mirror it into local storage.
+        tabs = data.tabs;
+        activeTabId = data.activeTabId || tabs[0].id;
+        await saveLocalOnly();
+      } else if (data && Array.isArray(data.transactions)) {
+        // Old-format cloud doc from before tabs existed — migrate it.
+        tabs = [{ id: newId(), name: 'General', transactions: data.transactions }];
+        activeTabId = tabs[0].id;
+        await ref.set({ tabs, activeTabId, updatedAt: Date.now() });
         await saveLocalOnly();
       } else {
         // First time this Google account has signed in here —
         // push whatever's currently on this device up to the cloud.
-        await ref.set({ transactions, updatedAt: Date.now() });
+        await ref.set({ tabs, activeTabId, updatedAt: Date.now() });
       }
 
       // Keep listening so changes made from *other* signed-in
       // devices show up here automatically too.
       unsubscribeSnapshot = ref.onSnapshot((docSnap) => {
-        if (docSnap.exists && Array.isArray(docSnap.data().transactions)) {
-          transactions = docSnap.data().transactions;
+        if (docSnap.exists && Array.isArray(docSnap.data().tabs) && docSnap.data().tabs.length) {
+          tabs = docSnap.data().tabs;
+          if (!tabs.some((t) => t.id === activeTabId)) activeTabId = tabs[0].id;
           saveLocalOnly();
+          renderTabs();
           render();
         }
       });
 
+      renderTabs();
       render();
     }
   });
+}
+
+// ---------------------------------------------------------------
+// Tabs
+// ---------------------------------------------------------------
+function renderTabs() {
+  const el = $('tabbar');
+  if (!el) return;
+
+  el.innerHTML = tabs.map((t) => `
+        <div class="tab ${t.id === activeTabId ? 'active' : ''}" data-id="${t.id}" title="Double-click to rename">
+          <span class="tab-name">${escapeHtml(t.name)}</span>
+          ${tabs.length > 1 ? `<button class="tab-close" data-id="${t.id}" title="Delete tab">×</button>` : ''}
+        </div>
+      `).join('') + '<button class="tab-add" id="addTab" title="New tab">＋ New tab</button>';
+
+  el.querySelectorAll('.tab').forEach((tabEl) => {
+    tabEl.addEventListener('click', (e) => {
+      if (e.target.classList.contains('tab-close')) return;
+      switchTab(tabEl.dataset.id);
+    });
+    tabEl.addEventListener('dblclick', (e) => {
+      if (e.target.classList.contains('tab-close')) return;
+      renameTab(tabEl.dataset.id);
+    });
+  });
+  el.querySelectorAll('.tab-close').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      deleteTab(btn.dataset.id);
+    });
+  });
+  $('addTab').onclick = addTab;
+}
+
+function switchTab(id) {
+  if (id === activeTabId) return;
+  activeTabId = id;
+  saveLocalOnly();
+  renderTabs();
+  hideError();
+  render();
+}
+
+function addTab() {
+  const name = prompt('Name this tab (e.g. "Freelance", "Savings"):', '');
+  if (name === null) return;
+  const clean = name.trim().slice(0, 30);
+  if (!clean) return;
+  const tab = { id: newId(), name: clean, transactions: [] };
+  tabs.push(tab);
+  activeTabId = tab.id;
+  saveData();
+  renderTabs();
+  render();
+}
+
+function renameTab(id) {
+  const tab = tabs.find((t) => t.id === id);
+  if (!tab) return;
+  const name = prompt('Rename tab:', tab.name);
+  if (name === null) return;
+  const clean = name.trim().slice(0, 30);
+  if (!clean) return;
+  tab.name = clean;
+  saveData();
+  renderTabs();
+  render();
+}
+
+function deleteTab(id) {
+  if (tabs.length <= 1) return;
+  const tab = tabs.find((t) => t.id === id);
+  if (!tab) return;
+  if (!confirm(`Delete "${tab.name}" and all ${tab.transactions.length} of its transactions? This can't be undone.`)) return;
+  tabs = tabs.filter((t) => t.id !== id);
+  if (activeTabId === id) activeTabId = tabs[0].id;
+  saveData();
+  renderTabs();
+  render();
 }
 
 // ---------------------------------------------------------------
@@ -264,7 +386,7 @@ $('submit').onclick = () => {
   amount = Math.round(amount * 100) / 100;
 
   const candidate = {
-    id: Date.now() + Math.random(),
+    id: newId(),
     createdAt: Date.now(),
     type: selectedType,
     amount,
@@ -272,13 +394,15 @@ $('submit').onclick = () => {
     date: $('txdate').value || null
   };
 
-  if (selectedType === 'spend' && wouldGoNegative([...transactions, candidate])) {
-    showError('That would take your balance below £0. Reduce the amount or add money first.');
+  const tab = currentTab();
+
+  if (selectedType === 'spend' && wouldGoNegative([...tab.transactions, candidate])) {
+    showError('That would take this tab\u2019s balance below £0. Reduce the amount or add money first.');
     return;
   }
 
-  transactions.push(candidate);
-  saveTransactions();
+  tab.transactions.push(candidate);
+  saveData();
 
   $('amount').value = '';
   $('desc').value = '';
@@ -287,16 +411,18 @@ $('submit').onclick = () => {
 };
 
 $('reset').onclick = () => {
-  if (transactions.length && confirm('Delete all transactions?')) {
-    transactions = [];
-    saveTransactions();
+  const tab = currentTab();
+  if (tab.transactions.length && confirm(`Delete all transactions in "${tab.name}"?`)) {
+    tab.transactions = [];
+    saveData();
     render();
   }
 };
 
 function deleteTransaction(id) {
-  transactions = transactions.filter((t) => t.id !== id);
-  saveTransactions();
+  const tab = currentTab();
+  tab.transactions = tab.transactions.filter((t) => t.id !== id);
+  saveData();
   render();
 }
 window.deleteTransaction = deleteTransaction;
@@ -305,11 +431,11 @@ window.deleteTransaction = deleteTransaction;
 // Derived data
 // ---------------------------------------------------------------
 
-// Chronological list of transactions, each annotated with the
-// running balance ("b") at that point.
+// Chronological list of the active tab's transactions, each
+// annotated with the running balance ("b") at that point.
 function balancePoints() {
   let balance = 0;
-  return sortedByTime(transactions).map((t) => {
+  return sortedByTime(currentTab().transactions).map((t) => {
     balance += t.type === 'add' ? t.amount : -t.amount;
     return { ...t, b: balance };
   });
@@ -331,14 +457,17 @@ function axisLabel(t) {
 // Rendering
 // ---------------------------------------------------------------
 function render() {
+  const tab = currentTab();
   const points = balancePoints();
   const balance = points.length ? points[points.length - 1].b : 0;
+
+  if ($('balanceLabel')) $('balanceLabel').textContent = `Current balance — ${tab.name}`;
 
   $('balance').textContent = formatMoney(balance);
   $('balance').className = 'balance ' + (balance > 0 ? 'green' : '');
 
-  $('status').textContent = transactions.length
-    ? `${transactions.length} transaction${transactions.length === 1 ? '' : 's'} recorded`
+  $('status').textContent = tab.transactions.length
+    ? `${tab.transactions.length} transaction${tab.transactions.length === 1 ? '' : 's'} recorded`
     : 'No transactions yet';
 
   $('range').textContent = points.length
@@ -346,8 +475,8 @@ function render() {
     `${points[points.length - 1].date ? dateLabelHtml(points[points.length - 1].date).replace(/<[^>]+>/g, '•') : '•'}`
     : 'Waiting for transactions';
 
-  $('openHistory').textContent = transactions.length
-    ? `☰ Transaction history (${transactions.length})`
+  $('openHistory').textContent = tab.transactions.length
+    ? `☰ Transaction history (${tab.transactions.length})`
     : '☰ Transaction history';
 
   renderHistory();
@@ -355,7 +484,7 @@ function render() {
 }
 
 function renderHistory() {
-  const rows = sortedByTime(transactions).slice().reverse();
+  const rows = sortedByTime(currentTab().transactions).slice().reverse();
   const el = $('history');
   el.className = 'history';
 
@@ -378,8 +507,7 @@ function renderHistory() {
 }
 
 // ---------------------------------------------------------------
-// Chart (base implementation — replaced below by the multi-section
-// chart code, which reassigns window.drawChart once it loads)
+// Chart
 // ---------------------------------------------------------------
 function drawChart(points) {
   const canvas = $('graph');
@@ -484,311 +612,4 @@ function drawChart(points) {
 window.onresize = () => drawChart(balancePoints());
 
 // ---------------------------------------------------------------
-loadTransactions();
-
-// ---------------------------------------------------------------
-// Charts (multi-section balance view)
-//
-// This section replaces the drawChart() defined above, and lets
-// the user split their balance history into named sections — each
-// is a tab with a name the user picks; the chart underneath is the
-// same balance-over-time view every time.
-//
-// Uses transactions, balancePoints() and escapeHtml() from above.
-// ---------------------------------------------------------------
-
-const CHARTS_KEY = 'moneyflow_charts';
-
-// Every section shows the same balance-over-time chart — this just
-// holds the default name and the message shown with no transactions.
-const DEFAULT_CHART_NAME = 'Balance over time';
-const EMPTY_MESSAGE = 'Add a transaction to see your balance here';
-
-let charts = [];        // { id, name }
-let activeChartId = null;
-
-const GREEN = '#20d879';
-const RED = '#ff4d67';
-const GRID = 'rgba(130,145,164,.13)';
-const AXIS = 'rgba(130,145,164,.35)';
-const TEXT = '#718096';
-
-// Short money label for axes: £1,250 rather than £1,250.00
-const shortMoney = (n) =>
-  (n < 0 ? '-£' : '£') + Math.round(Math.abs(n)).toLocaleString('en-GB');
-
-const activeChart = () => charts.find((c) => c.id === activeChartId) || charts[0];
-
-// ---------------------------------------------------------------
-// Saving the user's chart sections
-//
-// Kept on this device. window.storage is used if it exists (so this
-// matches the transaction storage above), otherwise plain browser
-// localStorage.
-// ---------------------------------------------------------------
-async function readStore(key) {
-  if (window.storage) {
-    const result = await window.storage.get(key, false);
-    return result && result.value ? result.value : null;
-  }
-  return localStorage.getItem(key);
-}
-
-async function writeStore(key, value) {
-  if (window.storage) return window.storage.set(key, value, false);
-  localStorage.setItem(key, value);
-}
-
-async function loadCharts() {
-  try {
-    const saved = await readStore(CHARTS_KEY);
-    charts = saved ? JSON.parse(saved) : [];
-  } catch (err) {
-    charts = [];
-  }
-
-  // First run: start off with one section.
-  if (!charts.length) {
-    charts = [{ id: 1, name: DEFAULT_CHART_NAME }];
-  }
-
-  activeChartId = charts[0].id;
-  renderTabs();
-  drawChart(balancePoints());
-}
-
-async function saveCharts() {
-  try {
-    await writeStore(CHARTS_KEY, JSON.stringify(charts));
-  } catch (err) {
-    console.error('Could not save your charts:', err);
-  }
-}
-
-// ---------------------------------------------------------------
-// Tabs
-// ---------------------------------------------------------------
-function renderTabs() {
-  const strip = document.getElementById('chartTabs');
-
-  strip.innerHTML = charts.map((c) => `
-    <button class="chart-tab ${c.id === activeChartId ? 'active' : ''}" data-id="${c.id}">
-      ${escapeHtml(c.name)}
-    </button>
-  `).join('') + '<button class="chart-tab new" id="newChart">＋ New chart</button>';
-
-  strip.querySelectorAll('.chart-tab[data-id]').forEach((btn) => {
-    btn.onclick = () => {
-      activeChartId = Number(btn.dataset.id);
-      renderTabs();
-      drawChart(balancePoints());
-    };
-  });
-
-  document.getElementById('newChart').onclick = () => openChartModal('new');
-
-  const chart = activeChart();
-  document.getElementById('chartTitle').textContent = chart ? chart.name : '';
-  document.getElementById('deleteChart').disabled = charts.length < 2;
-}
-
-// ---------------------------------------------------------------
-// New chart / rename dialog
-// ---------------------------------------------------------------
-let modalMode = 'new';
-
-function openChartModal(mode) {
-  modalMode = mode;
-
-  const chart = activeChart();
-
-  document.getElementById('chartModalTitle').textContent =
-    mode === 'new' ? 'New chart' : 'Rename chart';
-
-  document.getElementById('chartName').value = mode === 'rename' ? chart.name : '';
-
-  document.getElementById('chartError').classList.remove('show');
-  document.getElementById('chartModalBackdrop').classList.add('open');
-  document.getElementById('chartName').focus();
-}
-
-function closeChartModal() {
-  document.getElementById('chartModalBackdrop').classList.remove('open');
-}
-
-function saveChartFromModal() {
-  const name = document.getElementById('chartName').value.trim() || DEFAULT_CHART_NAME;
-
-  const clash = charts.some(
-    (c) => c.name.toLowerCase() === name.toLowerCase() &&
-      !(modalMode === 'rename' && c.id === activeChartId)
-  );
-
-  if (clash) {
-    const error = document.getElementById('chartError');
-    error.textContent = 'You already have a chart called that. Pick another name.';
-    error.classList.add('show');
-    return;
-  }
-
-  if (modalMode === 'new') {
-    const chart = { id: Date.now(), name };
-    charts.push(chart);
-    activeChartId = chart.id;
-  } else {
-    activeChart().name = name;
-  }
-
-  saveCharts();
-  closeChartModal();
-  renderTabs();
-  drawChart(balancePoints());
-}
-
-function deleteActiveChart() {
-  if (charts.length < 2) return;
-
-  const chart = activeChart();
-  if (!confirm(`Remove the "${chart.name}" chart?`)) return;
-
-  charts = charts.filter((c) => c.id !== chart.id);
-  activeChartId = charts[0].id;
-
-  saveCharts();
-  renderTabs();
-  drawChart(balancePoints());
-}
-
-document.getElementById('renameChart').onclick = () => openChartModal('rename');
-document.getElementById('deleteChart').onclick = deleteActiveChart;
-document.getElementById('saveChart').onclick = saveChartFromModal;
-document.getElementById('closeChartModal').onclick = closeChartModal;
-document.getElementById('chartModalBackdrop').onclick = (e) => {
-  if (e.target === document.getElementById('chartModalBackdrop')) closeChartModal();
-};
-document.getElementById('chartName').onkeydown = (e) => {
-  if (e.key === 'Enter') saveChartFromModal();
-};
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') closeChartModal();
-});
-
-// ---------------------------------------------------------------
-// Shared canvas setup
-// ---------------------------------------------------------------
-function setupCanvas() {
-  const canvas = document.getElementById('graph');
-  const rect = canvas.getBoundingClientRect();
-  const dpr = devicePixelRatio || 1;
-
-  canvas.width = rect.width * dpr;
-  canvas.height = rect.height * dpr;
-
-  const ctx = canvas.getContext('2d');
-  ctx.scale(dpr, dpr);
-  ctx.clearRect(0, 0, rect.width, rect.height);
-  ctx.font = '11px system-ui';
-
-  return { ctx, w: rect.width, h: rect.height };
-}
-
-function drawEmpty(ctx, w, h) {
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#8190a3';
-  ctx.fillText(EMPTY_MESSAGE, w / 2, h / 2);
-}
-
-// Horizontal gridlines with money labels down the left.
-function drawGrid(ctx, box, min, max) {
-  ctx.textAlign = 'right';
-  ctx.textBaseline = 'middle';
-
-  for (let i = 0; i < 5; i++) {
-    const value = min + (max - min) * i / 4;
-    const y = box.yAt(value);
-
-    ctx.strokeStyle = GRID;
-    ctx.beginPath();
-    ctx.moveTo(box.L, y);
-    ctx.lineTo(box.R, y);
-    ctx.stroke();
-
-    ctx.fillStyle = TEXT;
-    ctx.fillText(shortMoney(value), box.L - 8, y);
-  }
-}
-
-// ---------------------------------------------------------------
-// Balance over time — running balance after every transaction
-// ---------------------------------------------------------------
-function drawBalanceChart(ctx, w, h, points) {
-  const L = 55, T = 18, B = h - 32, R = w - 15;
-  const plotW = R - L, plotH = B - T;
-
-  const values = points.length ? points.map((p) => p.b) : [0];
-  let min = Math.min(0, ...values);
-  let max = Math.max(0, ...values);
-  if (min === max) max += 10;
-  const pad = (max - min) * .12;
-  max += pad;
-  min = Math.max(0, min - pad);
-
-  const xAt = (i) => L + (points.length <= 1 ? plotW / 2 : (i / (points.length - 1)) * plotW);
-  const yAt = (v) => T + ((max - v) / (max - min)) * plotH;
-
-  drawGrid(ctx, { L, R, yAt }, min, max);
-
-  ctx.strokeStyle = AXIS;
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(L, yAt(0));
-  ctx.lineTo(R, yAt(0));
-  ctx.moveTo(L, T);
-  ctx.lineTo(L, B);
-  ctx.stroke();
-
-  if (!points.length) return drawEmpty(ctx, w, h);
-
-  for (let i = 1; i < points.length; i++) {
-    ctx.strokeStyle = points[i].b >= points[i - 1].b ? GREEN : RED;
-    ctx.lineWidth = 3;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(xAt(i - 1), yAt(points[i - 1].b));
-    ctx.lineTo(xAt(i), yAt(points[i].b));
-    ctx.stroke();
-  }
-
-  points.forEach((p, i) => {
-    ctx.fillStyle = '#070b12';
-    ctx.beginPath();
-    ctx.arc(xAt(i), yAt(p.b), 5, 0, 7);
-    ctx.fill();
-
-    ctx.fillStyle = (i && p.b < points[i - 1].b) ? RED : GREEN;
-    ctx.beginPath();
-    ctx.arc(xAt(i), yAt(p.b), 3, 0, 7);
-    ctx.fill();
-  });
-
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'top';
-  ctx.fillStyle = TEXT;
-  const tickCount = Math.min(6, points.length);
-  for (let j = 0; j < tickCount; j++) {
-    const i = Math.round(j * (points.length - 1) / Math.max(1, tickCount - 1));
-    ctx.fillText(axisLabel(points[i]), xAt(i), h - 21);
-  }
-}
-
-// ---------------------------------------------------------------
-// Replaces drawChart() defined earlier in this file
-// ---------------------------------------------------------------
-window.drawChart = function (points) {
-  if (!activeChart()) return;
-  const { ctx, w, h } = setupCanvas();
-  drawBalanceChart(ctx, w, h, points);
-};
-
-loadCharts();
+loadData();
