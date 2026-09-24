@@ -145,6 +145,97 @@ body {
   box-shadow: 0 0 0 3px rgba(32, 216, 121, .18);
 }
 
+/* ---------------------------------------------------------------
+   Tab bar — switches which earnings "book" is shown below.
+   Each tab keeps its own balance/chart/history in script.js.
+   --------------------------------------------------------------- */
+.tabbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
+}
+
+.tabbar::-webkit-scrollbar {
+  height: 5px;
+}
+
+.tabbar::-webkit-scrollbar-thumb {
+  background: #26374a;
+  border-radius: 5px;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 8px 8px 8px 14px;
+  border: 1px solid #1b2938;
+  background: #0d141e;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: border-color .15s, color .15s, background .15s;
+  color: #8190a3;
+  user-select: none;
+}
+
+.tab:hover {
+  border-color: #37506b;
+  color: #c3cedb;
+}
+
+.tab.active {
+  background: #12202f;
+  border-color: #20d879;
+  color: #eef4fb;
+}
+
+.tab-name {
+  font-weight: 700;
+  font-size: 12.5px;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tab-close {
+  border: 0;
+  background: transparent;
+  color: #647386;
+  cursor: pointer;
+  padding: 0 2px;
+  font-size: 13px;
+  line-height: 1;
+  border-radius: 50%;
+}
+
+.tab-close:hover {
+  color: #ff8595;
+}
+
+.tab-add {
+  flex-shrink: 0;
+  padding: 8px 14px;
+  border: 1px dashed #26374a;
+  background: transparent;
+  border-radius: 999px;
+  color: #8190a3;
+  font-weight: 700;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: border-color .15s, color .15s;
+}
+
+.tab-add:hover {
+  border-color: #20d879;
+  color: #20d879;
+}
+
 .card {
   background: #0d141e;
   border: 1px solid #1b2938;
@@ -537,103 +628,8 @@ input {
     padding: 4px 6px 4px 4px;
     gap: 4px;
   }
-}
 
-/* Chart view switcher — sits between the chart heading and the canvas */
-
-.chart-tabs {
-  display: flex;
-  gap: 6px;
-  padding: 12px 18px 0;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.chart-tabs::-webkit-scrollbar {
-  display: none;
-}
-
-.chart-tab {
-  white-space: nowrap;
-  padding: 8px 13px;
-  font-size: 12.5px;
-  font-weight: 600;
-  color: #8190a3;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 999px;
-}
-
-.chart-tab:hover {
-  color: #eef4fb;
-}
-
-.chart-tab.active {
-  color: #eef4fb;
-  background: #15212e;
-  border-color: #26374a;
-}
-
-.chart-tab:focus-visible {
-  outline: 2px solid #20d879;
-  outline-offset: 1px;
-}
-
-@media (max-width: 600px) {
-  .chart-tabs {
-    padding: 10px 14px 0;
-    gap: 5px;
-  }
-
-  .chart-tab {
-    padding: 9px 11px;
-    font-size: 12px;
-  }
-}
-
-.chart-tab.new {
-  color: #647386;
-  border-style: dashed;
-  border-color: #26374a;
-}
-
-.chart-tab.new:hover {
-  color: #20d879;
-  border-color: #20d879;
-}
-
-/* Rename / Remove, sitting in the chart heading */
-.chart-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.link-btn {
-  background: transparent;
-  border: 0;
-  padding: 2px;
-  color: #8190a3;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.link-btn:hover {
-  color: #eef4fb;
-}
-
-.link-btn:disabled {
-  opacity: .35;
-  cursor: not-allowed;
-}
-
-.link-btn:focus-visible {
-  outline: 2px solid #20d879;
-  outline-offset: 2px;
-}
-
-@media (max-width: 600px) {
-  .chart-actions {
-    gap: 9px;
+  .tab-name {
+    max-width: 90px;
   }
 }
