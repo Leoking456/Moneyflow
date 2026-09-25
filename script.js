@@ -63,7 +63,7 @@ let selectedType = 'add';
 
 const $ = (id) => document.getElementById(id);
 
-const newId = () => Date.now() + Math.random();
+const newId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 const formatMoney = (n) =>
   new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(n);
@@ -77,9 +77,32 @@ function currentTab() {
   return tabs.find((t) => t.id === activeTabId) || tabs[0];
 }
 
+// Thin wrapper around localStorage so the rest of the app doesn't
+// care about the underlying API, and a bad/blocked storage access
+// (private browsing, storage disabled, etc.) never crashes the page.
+function storageGet(key) {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw === null ? null : { value: raw };
+  } catch (err) {
+    console.error('Storage read failed:', err);
+    return null;
+  }
+}
+
+function storageSet(key, value) {
+  try {
+    localStorage.setItem(key, value);
+    return true;
+  } catch (err) {
+    console.error('Storage write failed:', err);
+    return false;
+  }
+}
+
 async function loadData() {
   try {
-    const result = await window.storage.get(STORAGE_KEY, false);
+    const result = storageGet(STORAGE_KEY);
     if (result && result.value) {
       const parsed = JSON.parse(result.value);
       if (Array.isArray(parsed.tabs) && parsed.tabs.length) {
@@ -95,7 +118,7 @@ async function loadData() {
     // One-time migration from the old single-list storage format.
     let migrated = [];
     try {
-      const old = await window.storage.get(OLD_STORAGE_KEY, false);
+      const old = storageGet(OLD_STORAGE_KEY);
       if (old && old.value) migrated = JSON.parse(old.value) || [];
     } catch (err) {
       migrated = [];
@@ -113,11 +136,7 @@ async function loadData() {
 // Saves to this device only (local browser storage). Always runs,
 // signed in or not — this is the "automatic save to device" part.
 async function saveLocalOnly() {
-  try {
-    await window.storage.set(STORAGE_KEY, JSON.stringify({ tabs, activeTabId }), false);
-  } catch (err) {
-    console.error('Storage error:', err);
-  }
+  storageSet(STORAGE_KEY, JSON.stringify({ tabs, activeTabId }));
 }
 
 // Saves locally, and — if signed in — also pushes to the user's
@@ -259,7 +278,7 @@ function renderTabs() {
 function switchTab(id) {
   if (id === activeTabId) return;
   activeTabId = id;
-  saveLocalOnly();
+  saveData();
   renderTabs();
   hideError();
   render();
@@ -421,7 +440,7 @@ $('reset').onclick = () => {
 
 function deleteTransaction(id) {
   const tab = currentTab();
-  tab.transactions = tab.transactions.filter((t) => t.id !== id);
+  tab.transactions = tab.transactions.filter((t) => String(t.id) !== String(id));
   saveData();
   render();
 }
@@ -501,7 +520,7 @@ function renderHistory() {
             <div class="muted">${dateLabelHtml(t.date)}</div>
           </div>
           <div class="amount ${t.type === 'add' ? 'green' : 'red'}">${t.type === 'add' ? '+' : '−'}${formatMoney(t.amount)}</div>
-          <button class="del" onclick="deleteTransaction(${t.id})">×</button>
+          <button class="del" onclick="deleteTransaction('${t.id}')">×</button>
         </div>
       `).join('');
 }
