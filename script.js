@@ -65,12 +65,43 @@ const $ = (id) => document.getElementById(id);
 
 const newId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
+// Guards against corrupted/legacy tab data (from Firestore, old
+// localStorage, or a stale client) ever reaching render(): strips
+// malformed entries, backfills missing fields, and coerces every id
+// to a string so old numeric/legacy ids still compare correctly
+// against activeTabId. Always returns at least one valid tab.
+function sanitizeTabs(rawTabs, rawActiveId) {
+  const cleaned = (Array.isArray(rawTabs) ? rawTabs : [])
+    .filter((t) => t && typeof t === 'object')
+    .map((t) => ({
+      id: String(t.id ?? newId()),
+      name: (typeof t.name === 'string' && t.name.trim()) ? t.name : 'General',
+      transactions: Array.isArray(t.transactions) ? t.transactions : []
+    }));
+
+  if (!cleaned.length) {
+    cleaned.push({ id: newId(), name: 'General', transactions: [] });
+  }
+
+  const droppedCount = (Array.isArray(rawTabs) ? rawTabs.length : 0) - cleaned.length;
+  if (droppedCount > 0) {
+    console.warn(`sanitizeTabs: dropped ${droppedCount} malformed tab entrie(s).`);
+  }
+
+  const wantedActiveId = String(rawActiveId ?? '');
+  const activeTabId = cleaned.some((t) => t.id === wantedActiveId)
+    ? wantedActiveId
+    : cleaned[0].id;
+
+  return { tabs: cleaned, activeTabId };
+}
+
 const formatMoney = (n) =>
   new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(n);
 
 const escapeHtml = (s) =>
-  s.replace(/[&<>"']/g, (c) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&#39;', "'": '&#39;'
+  String(s ?? '').replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
   }[c]));
 
 function currentTab() {
@@ -106,8 +137,7 @@ async function loadData() {
     if (result && result.value) {
       const parsed = JSON.parse(result.value);
       if (Array.isArray(parsed.tabs) && parsed.tabs.length) {
-        tabs = parsed.tabs;
-        activeTabId = parsed.activeTabId || tabs[0].id;
+        ({ tabs, activeTabId } = sanitizeTabs(parsed.tabs, parsed.activeTabId));
       }
     }
   } catch (err) {
@@ -172,8 +202,8 @@ function renderAuthArea() {
     el.innerHTML = `
           <div class="user-chip">
             ${currentUser.photoURL ? `<img src="${currentUser.photoURL}" alt="">` : ''}
-            <span>${escapeHtml(currentUser.displayName || currentUser.email || 'Signed in')}</span>
-            <button id="signOutBtn" class="del" title="Sign out"></button>
+            <span class="user-name">${escapeHtml(currentUser.displayName || currentUser.email || 'Signed in')}</span>
+            <button id="signOutBtn" class="del" title="Sign out">×</button>
           </div>
         `;
     $('signOutBtn').onclick = () => firebase.auth().signOut();
@@ -208,9 +238,9 @@ if (firebaseEnabled) {
 
       if (data && Array.isArray(data.tabs) && data.tabs.length) {
         // Cloud already has tab-based data for this account — treat
-        // it as the source of truth and mirror it into local storage.
-        tabs = data.tabs;
-        activeTabId = data.activeTabId || tabs[0].id;
+        // it as the source of truth (sanitized) and mirror it into
+        // local storage.
+        ({ tabs, activeTabId } = sanitizeTabs(data.tabs, data.activeTabId));
         await saveLocalOnly();
       } else if (data && Array.isArray(data.transactions)) {
         // Old-format cloud doc from before tabs existed — migrate it.
@@ -228,7 +258,7 @@ if (firebaseEnabled) {
       // devices show up here automatically too.
       unsubscribeSnapshot = ref.onSnapshot((docSnap) => {
         if (docSnap.exists && Array.isArray(docSnap.data().tabs) && docSnap.data().tabs.length) {
-          tabs = docSnap.data().tabs;
+          ({ tabs, activeTabId } = sanitizeTabs(docSnap.data().tabs, docSnap.data().activeTabId));
           if (!tabs.some((t) => t.id === activeTabId)) activeTabId = tabs[0].id;
           saveLocalOnly();
           renderTabs();
@@ -552,7 +582,7 @@ function drawChart(points) {
   if (min === max) max += 10;
   const pad = (max - min) * .12;
   max += pad;
-  min = Math.max(0, min - pad);
+  min = min - pad;
 
   const xAt = (i) => L + (points.length <= 1 ? plotW / 2 : (i / (points.length - 1)) * plotW);
   const yAt = (v) => T + ((max - v) / (max - min)) * plotH;
