@@ -406,7 +406,7 @@ function hideError() {
 // it was created if no date was given (so undated entries still
 // slot in chronologically rather than always landing at the end).
 function sortKey(t) {
-  return t.date ? new Date(t.date + 'T12:00:00').getTime() : t.createdAt;
+  return t.createdAt;
 }
 
 function sortedByTime(list) {
