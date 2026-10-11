@@ -406,22 +406,11 @@ function hideError() {
 // it was created if no date was given (so undated entries still
 // slot in chronologically rather than always landing at the end).
 function sortKey(t) {
-  return t.createdAt;
+  return t.date ? new Date(t.date + 'T12:00:00').getTime() : t.createdAt;
 }
 
 function sortedByTime(list) {
   return [...list].sort((a, b) => sortKey(a) - sortKey(b) || a.createdAt - b.createdAt);
-}
-
-// Simulates the running balance through a list of transactions and
-// reports whether it ever dips below £0.
-function wouldGoNegative(list) {
-  let balance = 0;
-  for (const t of sortedByTime(list)) {
-    balance += t.type === 'add' ? t.amount : -t.amount;
-    if (balance < 0) return true;
-  }
-  return false;
 }
 
 $('submit').onclick = () => {
@@ -444,11 +433,6 @@ $('submit').onclick = () => {
   };
 
   const tab = currentTab();
-
-  if (selectedType === 'spend' && wouldGoNegative([...tab.transactions, candidate])) {
-    showError('That would take this tab\u2019s balance below £0. Reduce the amount or add money first.');
-    return;
-  }
 
   tab.transactions.push(candidate);
   saveData();
@@ -513,7 +497,7 @@ function render() {
   if ($('balanceLabel')) $('balanceLabel').textContent = `Current balance — ${tab.name}`;
 
   $('balance').textContent = formatMoney(balance);
-  $('balance').className = 'balance ' + (balance > 0 ? 'green' : '');
+  $('balance').className = 'balance ' + (balance > 0 ? 'green' : balance < 0 ? 'red' : '');
 
   $('status').textContent = tab.transactions.length
     ? `${tab.transactions.length} transaction${tab.transactions.length === 1 ? '' : 's'} recorded`
