@@ -4,12 +4,13 @@
 // only saves on this device (no Google sign-in / cloud sync).
 // =====================================================================
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.firebasestorage.app",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyCMsifis_E4o3gkAUypttOK6VsH7vkONig",
+  authDomain: "moneychart-7ea74.firebaseapp.com",
+  projectId: "moneychart-7ea74",
+  storageBucket: "moneychart-7ea74.firebasestorage.app",
+  messagingSenderId: "968402886264",
+  appId: "1:968402886264:web:80afab2399e865bac2978d",
+  measurementId: "G-Y405GRYZVT"
 };
 
 let firebaseEnabled = false;
