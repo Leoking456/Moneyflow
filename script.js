@@ -221,6 +221,24 @@ async function loadData() {
   }
 }
 
+// Remembers which Google account the data stored on this device belongs
+// to, so one account's data is never uploaded into another account.
+const OWNER_KEY = 'moneyflow_owner';
+
+function resetLocalData() {
+  tabs = [{ id: newId(), name: 'General', transactions: [] }];
+  activeTabId = tabs[0].id;
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(OLD_STORAGE_KEY);
+    localStorage.removeItem(OWNER_KEY);
+  } catch (err) {
+    console.error('Could not clear local data:', err);
+  }
+  renderTabs();
+  render();
+}
+
 // Saves to this device only (local browser storage). Always runs,
 // signed in or not — this is the "automatic save to device" part.
 async function saveLocalOnly() {
@@ -265,7 +283,12 @@ function renderAuthArea() {
             <button id="signOutBtn" class="del" title="Sign out">×</button>
           </div>
         `;
-    $('signOutBtn').onclick = () => firebase.auth().signOut();
+    $('signOutBtn').onclick = async () => {
+      if (!confirm('Sign out?\n\nYour data stays safe in your Google account. It will be cleared from this device and come back when you sign in again.')) return;
+      if (unsubscribeSnapshot) { unsubscribeSnapshot(); unsubscribeSnapshot = null; }
+      await firebase.auth().signOut();
+      resetLocalData();
+    };
   } else {
     el.innerHTML = `
           <button id="signInBtn" class="google-btn">Sign in with Google</button>
@@ -326,9 +349,19 @@ if (firebaseEnabled) {
         await ref.set({ tabs, activeTabId, updatedAt: Date.now() });
         await saveLocalOnly();
       } else {
-        // First time this account signs in — upload what is on this device.
+        // Cloud is empty for this account. Upload what is on this device only
+        // if it is unowned guest data or already belongs to this account;
+        // never copy another account's data into this one.
+        const owner = storageGet(OWNER_KEY);
+        const ownerUid = owner ? owner.value : null;
+        if (ownerUid && ownerUid !== user.uid) {
+          tabs = [{ id: newId(), name: 'General', transactions: [] }];
+          activeTabId = tabs[0].id;
+          await saveLocalOnly();
+        }
         await ref.set({ tabs, activeTabId, updatedAt: Date.now() });
       }
+      storageSet(OWNER_KEY, user.uid);
 
       // Live updates from your other signed-in devices.
       unsubscribeSnapshot = ref.onSnapshot((docSnap) => {
